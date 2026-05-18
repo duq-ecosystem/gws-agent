@@ -22,8 +22,8 @@ RUN uv pip install --system /duq-agent-core
 COPY gws-agent/pyproject.toml gws-agent/README.md ./
 COPY gws-agent/src/ ./src/
 
-# Install gws-agent
-RUN uv pip install --system .
+# Install gws-agent as editable with dev dependencies
+RUN uv pip install --system -e ".[dev]"
 
 # Set environment
 ENV PYTHONUNBUFFERED=1
