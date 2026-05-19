@@ -14,6 +14,7 @@ from duq_agent_core import (
     AgentCapabilities,
     AgentCard,
     AgentConfig,
+    AgentInterface,
     AgentSkill,
     AgentTemplate,
     A2ATask,
@@ -37,13 +38,21 @@ class GWSAgent(AgentTemplate):
         card = AgentCard(
             name="gws-agent",
             description="Google Workspace: Gmail, Calendar, Drive, Tasks",
-            url=config.get_public_url(),
             version="1.0.0",
+            supported_interfaces=[
+                AgentInterface(
+                    url=config.get_public_url(),
+                    protocol_binding="JSONRPC",
+                    protocol_version="1.0",
+                )
+            ],
             capabilities=AgentCapabilities(
                 streaming=False,
                 push_notifications=False,
                 state_transition_history=False,
             ),
+            default_input_modes=["text/plain", "application/json"],
+            default_output_modes=["text/plain", "application/json"],
             skills=self._create_skills(),
         )
 
