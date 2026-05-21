@@ -44,6 +44,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 
+[tool.uv.sources]
+# Path-dep for local development; CI/prod uses git version
+duq-agent-core = { path = "../../libs/duq-agent-core", editable = true }
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
