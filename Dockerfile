@@ -30,7 +30,7 @@ COPY gws-agent/pyproject.toml gws-agent/README.md ./
 RUN mkdir -p /app/src/gws_agent && \
     touch /app/src/gws_agent/__init__.py
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -e ".[dev]"
+    uv pip install --system --no-sources -e ".[dev]"
 
 # ============================================================
 # SOURCE LAYER (rebuilt on code changes only)
