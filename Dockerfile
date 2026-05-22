@@ -1,5 +1,6 @@
 # GWS Agent Dockerfile
 # Google Workspace: Gmail, Calendar, Drive, Tasks
+# Optimized: deps layer cached, source layer separate
 
 FROM python:3.11-slim
 
@@ -13,17 +14,31 @@ RUN apt-get update && apt-get install -y \
 # Install uv for fast package management
 RUN pip install --no-cache-dir uv
 
-# Install duq-agent-core first (local dependency)
+# ============================================================
+# DEPS LAYER (cached unless pyproject.toml changes)
+# ============================================================
+
+# duq-agent-core: copy pyproject.toml, create stub, install deps
 COPY duq-agent-core/pyproject.toml duq-agent-core/README.md /duq-agent-core/
-COPY duq-agent-core/src/ /duq-agent-core/src/
-RUN uv pip install --system /duq-agent-core
+RUN mkdir -p /duq-agent-core/src/duq_agent_core && \
+    touch /duq-agent-core/src/duq_agent_core/__init__.py
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -e /duq-agent-core
 
-# Copy gws-agent files
+# gws-agent: copy pyproject.toml, create stub, install deps
 COPY gws-agent/pyproject.toml gws-agent/README.md ./
-COPY gws-agent/src/ ./src/
+RUN mkdir -p /app/src/gws_agent && \
+    touch /app/src/gws_agent/__init__.py
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -e ".[dev]"
 
-# Install gws-agent as editable with dev dependencies
-RUN uv pip install --system -e ".[dev]"
+# ============================================================
+# SOURCE LAYER (rebuilt on code changes only)
+# ============================================================
+
+# Copy real source (overwrites stubs, editable install picks up changes)
+COPY duq-agent-core/src/ /duq-agent-core/src/
+COPY gws-agent/src/ ./src/
 
 # Set environment
 ENV PYTHONUNBUFFERED=1
