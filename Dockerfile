@@ -18,6 +18,13 @@ RUN pip install --no-cache-dir uv
 # DEPS LAYER (cached unless pyproject.toml changes)
 # ============================================================
 
+# duq-tracing: copy pyproject.toml, create stub, install deps
+COPY duq-tracing/python/pyproject.toml duq-tracing/python/README.md /duq-tracing/
+RUN mkdir -p /duq-tracing/duq_tracing && \
+    touch /duq-tracing/duq_tracing/__init__.py
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -e /duq-tracing
+
 # duq-agent-core: copy pyproject.toml, create stub, install deps
 COPY duq-agent-core/pyproject.toml duq-agent-core/README.md /duq-agent-core/
 RUN mkdir -p /duq-agent-core/src/duq_agent_core && \
@@ -37,6 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ============================================================
 
 # Copy real source (overwrites stubs, editable install picks up changes)
+COPY duq-tracing/python/duq_tracing/ /duq-tracing/duq_tracing/
 COPY duq-agent-core/src/ /duq-agent-core/src/
 COPY gws-agent/src/ ./src/
 
