@@ -240,15 +240,20 @@ class GWSAgent(AgentTemplate):
         ]
 
     def get_tools(self) -> list[ToolDefinition]:
-        """Return tool definitions for A2A."""
+        """Return tool definitions with handlers."""
         return [
             ToolDefinition(
                 name="gmail_unread",
                 description="Get unread emails",
                 input_schema={
                     "type": "object",
-                    "properties": {"max_results": {"type": "integer", "default": 10}},
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "max_results": {"type": "integer", "default": 10},
+                    },
+                    "required": ["user_id"],
                 },
+                handler=self._gmail_unread,
             ),
             ToolDefinition(
                 name="gmail_send",
@@ -256,29 +261,40 @@ class GWSAgent(AgentTemplate):
                 input_schema={
                     "type": "object",
                     "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
                         "to": {"type": "string"},
                         "subject": {"type": "string"},
                         "body": {"type": "string"},
                     },
-                    "required": ["to", "subject", "body"],
+                    "required": ["user_id", "to", "subject", "body"],
                 },
+                handler=self._gmail_send,
             ),
             ToolDefinition(
                 name="gmail_mark_read",
                 description="Mark email as read",
                 input_schema={
                     "type": "object",
-                    "properties": {"message_id": {"type": "string"}},
-                    "required": ["message_id"],
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "message_id": {"type": "string"},
+                    },
+                    "required": ["user_id", "message_id"],
                 },
+                handler=self._gmail_mark_read,
             ),
             ToolDefinition(
                 name="calendar_list",
                 description="List calendar events",
                 input_schema={
                     "type": "object",
-                    "properties": {"max_results": {"type": "integer", "default": 10}},
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "max_results": {"type": "integer", "default": 10},
+                    },
+                    "required": ["user_id"],
                 },
+                handler=self._calendar_list,
             ),
             ToolDefinition(
                 name="calendar_create",
@@ -286,13 +302,15 @@ class GWSAgent(AgentTemplate):
                 input_schema={
                     "type": "object",
                     "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
                         "summary": {"type": "string"},
                         "start_time": {"type": "string"},
                         "end_time": {"type": "string"},
                         "description": {"type": "string"},
                     },
-                    "required": ["summary", "start_time", "end_time"],
+                    "required": ["user_id", "summary", "start_time", "end_time"],
                 },
+                handler=self._calendar_create,
             ),
             ToolDefinition(
                 name="calendar_update",
@@ -300,23 +318,29 @@ class GWSAgent(AgentTemplate):
                 input_schema={
                     "type": "object",
                     "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
                         "event_id": {"type": "string"},
                         "summary": {"type": "string"},
                         "description": {"type": "string"},
                         "start_time": {"type": "string"},
                         "end_time": {"type": "string"},
                     },
-                    "required": ["event_id"],
+                    "required": ["user_id", "event_id"],
                 },
+                handler=self._calendar_update,
             ),
             ToolDefinition(
                 name="calendar_delete",
                 description="Delete calendar event",
                 input_schema={
                     "type": "object",
-                    "properties": {"event_id": {"type": "string"}},
-                    "required": ["event_id"],
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "event_id": {"type": "string"},
+                    },
+                    "required": ["user_id", "event_id"],
                 },
+                handler=self._calendar_delete,
             ),
             ToolDefinition(
                 name="drive_list",
@@ -324,18 +348,26 @@ class GWSAgent(AgentTemplate):
                 input_schema={
                     "type": "object",
                     "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
                         "max_results": {"type": "integer", "default": 10},
                         "query": {"type": "string"},
                     },
+                    "required": ["user_id"],
                 },
+                handler=self._drive_list,
             ),
             ToolDefinition(
                 name="tasks_list",
                 description="List tasks",
                 input_schema={
                     "type": "object",
-                    "properties": {"max_results": {"type": "integer", "default": 10}},
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "max_results": {"type": "integer", "default": 10},
+                    },
+                    "required": ["user_id"],
                 },
+                handler=self._tasks_list,
             ),
             ToolDefinition(
                 name="tasks_create",
@@ -343,136 +375,58 @@ class GWSAgent(AgentTemplate):
                 input_schema={
                     "type": "object",
                     "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
                         "title": {"type": "string"},
                         "notes": {"type": "string"},
                         "due": {"type": "string"},
                     },
-                    "required": ["title"],
+                    "required": ["user_id", "title"],
                 },
+                handler=self._tasks_create,
             ),
             ToolDefinition(
                 name="tasks_complete",
                 description="Complete task",
                 input_schema={
                     "type": "object",
-                    "properties": {"task_id": {"type": "string"}},
-                    "required": ["task_id"],
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "task_id": {"type": "string"},
+                    },
+                    "required": ["user_id", "task_id"],
                 },
+                handler=self._tasks_complete,
             ),
             ToolDefinition(
                 name="tasks_delete",
                 description="Delete task",
                 input_schema={
                     "type": "object",
-                    "properties": {"task_id": {"type": "string"}},
-                    "required": ["task_id"],
+                    "properties": {
+                        "user_id": {"type": "integer", "description": "User ID for credentials"},
+                        "task_id": {"type": "string"},
+                    },
+                    "required": ["user_id", "task_id"],
                 },
+                handler=self._tasks_delete,
             ),
         ]
 
-    async def execute_tool(self, tool_name: str, args: dict[str, Any], user_id: int) -> dict[str, Any]:
-        """Execute a tool with user credentials.
-
-        Args:
-            tool_name: Name of tool to execute
-            args: Tool arguments
-            user_id: User ID for credentials lookup
-
-        Returns:
-            Tool result
-        """
-        logger.info(f"[GWS] Executing: {tool_name} for user {user_id}")
-
-        # Get credentials
-        credentials = await get_user_gws_credentials(user_id)
-        if not credentials:
-            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE. Need to connect Google account."}
-
-        try:
-            # Route to handler
-            handlers = {
-                "gmail_unread": self._gmail_unread,
-                "gmail_send": self._gmail_send,
-                "gmail_mark_read": self._gmail_mark_read,
-                "calendar_list": self._calendar_list,
-                "calendar_create": self._calendar_create,
-                "calendar_update": self._calendar_update,
-                "calendar_delete": self._calendar_delete,
-                "drive_list": self._drive_list,
-                "tasks_list": self._tasks_list,
-                "tasks_create": self._tasks_create,
-                "tasks_complete": self._tasks_complete,
-                "tasks_delete": self._tasks_delete,
-            }
-
-            handler = handlers.get(tool_name)
-            if not handler:
-                return {"error": f"Unknown tool: {tool_name}"}
-
-            result = await handler(credentials, args)
-            return {"content": [{"type": "text", "text": result}]}
-
-        except Exception as e:
-            logger.exception(f"[GWS] Error in {tool_name}: {e}")
-            return {"error": str(e)}
-
-    async def process(self, task: A2ATask) -> A2ATaskResult:
-        """Process an A2A task."""
-        try:
-            context = task.context or {}
-            skill_id = context.get("skill_id")
-            parameters = context.get("parameters", {})
-            user_id = context.get("user_id")
-
-            if not skill_id:
-                return A2ATaskResult(
-                    task_id=task.id,
-                    status="failed",
-                    error="No skill_id in context",
-                )
-
-            if not user_id:
-                return A2ATaskResult(
-                    task_id=task.id,
-                    status="failed",
-                    error="No user_id in context",
-                )
-
-            logger.info(f"[GWS] Processing task {task.id}: {skill_id} for user {user_id}")
-            result = await self.execute_tool(skill_id, parameters, user_id)
-
-            if "error" in result:
-                return A2ATaskResult(
-                    task_id=task.id,
-                    status="failed",
-                    error=result["error"],
-                )
-
-            return A2ATaskResult(
-                task_id=task.id,
-                status="completed",
-                result=result,
-            )
-
-        except Exception as e:
-            logger.exception(f"[GWS] Task {task.id} failed: {e}")
-            return A2ATaskResult(
-                task_id=task.id,
-                status="failed",
-                error=str(e),
-            )
 
     # =========================================================================
     # Gmail Handlers
     # =========================================================================
 
-    async def _gmail_unread(self, creds: dict, args: dict) -> str:
+    async def _gmail_unread(self, user_id: int, max_results: int = 10) -> dict:
         """Get unread emails."""
-        max_results = args.get("max_results", 10)
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
+
         emails = await self._gws.gmail_get_unread(creds, max_results=max_results)
 
         if not emails:
-            return "No unread emails."
+            return {"content": [{"type": "text", "text": "No unread emails."}]}
 
         lines = []
         for i, email in enumerate(emails, 1):
@@ -482,40 +436,42 @@ class GWSAgent(AgentTemplate):
             lines.append(f"   ID: {email.get('id', '')}")
             lines.append("")
 
-        return "\n".join(lines)
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
-    async def _gmail_send(self, creds: dict, args: dict) -> str:
+    async def _gmail_send(self, user_id: int, to: str, subject: str, body: str) -> dict:
         """Send email."""
-        to = args.get("to", "")
-        subject = args.get("subject", "")
-        body = args.get("body", "")
-
-        if not to or not subject or not body:
-            return "Error: Need to, subject, and body"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         success = await self._gws.gmail_send(creds, to, subject, body)
-        return f"Email sent to {to}" if success else "Failed to send email"
+        text = f"Email sent to {to}" if success else "Failed to send email"
+        return {"content": [{"type": "text", "text": text}]}
 
-    async def _gmail_mark_read(self, creds: dict, args: dict) -> str:
+    async def _gmail_mark_read(self, user_id: int, message_id: str) -> dict:
         """Mark email as read."""
-        message_id = args.get("message_id", "")
-        if not message_id:
-            return "Error: Need message_id"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         success = await self._gws.gmail_mark_read(creds, message_id)
-        return "Email marked as read" if success else "Failed to mark as read"
+        text = "Email marked as read" if success else "Failed to mark as read"
+        return {"content": [{"type": "text", "text": text}]}
 
     # =========================================================================
     # Calendar Handlers
     # =========================================================================
 
-    async def _calendar_list(self, creds: dict, args: dict) -> str:
+    async def _calendar_list(self, user_id: int, max_results: int = 10) -> dict:
         """List calendar events."""
-        max_results = args.get("max_results", 10)
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
+
         events = await self._gws.calendar_list_events(creds, max_results=max_results)
 
         if not events:
-            return "No upcoming events"
+            return {"content": [{"type": "text", "text": "No upcoming events"}]}
 
         lines = ["Upcoming events:\n"]
         for event in events:
@@ -524,57 +480,72 @@ class GWSAgent(AgentTemplate):
             lines.append(f"  ID: {event.get('id', '')}")
             lines.append("")
 
-        return "\n".join(lines)
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
-    async def _calendar_create(self, creds: dict, args: dict) -> str:
+    async def _calendar_create(
+        self,
+        user_id: int,
+        summary: str,
+        start_time: str,
+        end_time: str,
+        description: str = "",
+    ) -> dict:
         """Create calendar event."""
-        summary = args.get("summary", "")
-        start_time = args.get("start_time", "")
-        end_time = args.get("end_time", "")
-        description = args.get("description", "")
-
-        if not summary or not start_time or not end_time:
-            return "Error: Need summary, start_time, end_time"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         event_id = await self._gws.calendar_create_event(
             creds, summary=summary, start_time=start_time,
             end_time=end_time, description=description
         )
-        return f"Event created: {event_id}" if event_id else "Failed to create event"
+        text = f"Event created: {event_id}" if event_id else "Failed to create event"
+        return {"content": [{"type": "text", "text": text}]}
 
-    async def _calendar_update(self, creds: dict, args: dict) -> str:
+    async def _calendar_update(
+        self,
+        user_id: int,
+        event_id: str,
+        summary: str | None = None,
+        description: str | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> dict:
         """Update calendar event."""
-        event_id = args.get("event_id", "")
-        if not event_id:
-            return "Error: Need event_id"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         success = await self._gws.calendar_update_event(
             creds,
             event_id=event_id,
-            summary=args.get("summary"),
-            description=args.get("description"),
-            start_time=args.get("start_time"),
-            end_time=args.get("end_time"),
+            summary=summary,
+            description=description,
+            start_time=start_time,
+            end_time=end_time,
         )
-        return "Event updated" if success else "Failed to update event"
+        text = "Event updated" if success else "Failed to update event"
+        return {"content": [{"type": "text", "text": text}]}
 
-    async def _calendar_delete(self, creds: dict, args: dict) -> str:
+    async def _calendar_delete(self, user_id: int, event_id: str) -> dict:
         """Delete calendar event."""
-        event_id = args.get("event_id", "")
-        if not event_id:
-            return "Error: Need event_id"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         success = await self._gws.calendar_delete_event(creds, event_id)
-        return "Event deleted" if success else "Failed to delete event"
+        text = "Event deleted" if success else "Failed to delete event"
+        return {"content": [{"type": "text", "text": text}]}
 
     # =========================================================================
     # Drive Handlers
     # =========================================================================
 
-    async def _drive_list(self, creds: dict, args: dict) -> str:
+    async def _drive_list(self, user_id: int, max_results: int = 10, query: str = "") -> dict:
         """List Drive files."""
-        max_results = args.get("max_results", 10)
-        query = args.get("query", "")
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         if query:
             files = await self._gws.drive_search(creds, query, max_results=max_results)
@@ -582,7 +553,7 @@ class GWSAgent(AgentTemplate):
             files = await self._gws.drive_list_files(creds, max_results=max_results)
 
         if not files:
-            return "No files found"
+            return {"content": [{"type": "text", "text": "No files found"}]}
 
         lines = ["Files:\n"]
         for f in files:
@@ -591,19 +562,22 @@ class GWSAgent(AgentTemplate):
             lines.append(f"  ID: {f.get('id', '')}")
             lines.append("")
 
-        return "\n".join(lines)
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
     # =========================================================================
     # Tasks Handlers
     # =========================================================================
 
-    async def _tasks_list(self, creds: dict, args: dict) -> str:
+    async def _tasks_list(self, user_id: int, max_results: int = 10) -> dict:
         """List tasks."""
-        max_results = args.get("max_results", 10)
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
+
         tasks = await self._gws.tasks_list(creds, max_results=max_results)
 
         if not tasks:
-            return "No tasks"
+            return {"content": [{"type": "text", "text": "No tasks"}]}
 
         lines = ["Tasks:\n"]
         for t in tasks:
@@ -614,35 +588,44 @@ class GWSAgent(AgentTemplate):
             lines.append(f"  ID: {t.get('id', '')}")
             lines.append("")
 
-        return "\n".join(lines)
+        return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
-    async def _tasks_create(self, creds: dict, args: dict) -> str:
+    async def _tasks_create(
+        self,
+        user_id: int,
+        title: str,
+        notes: str = "",
+        due: str = "",
+    ) -> dict:
         """Create task."""
-        title = args.get("title", "")
-        if not title:
-            return "Error: Need title"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         task_id = await self._gws.tasks_create(
             creds, title=title,
-            notes=args.get("notes"),
-            due=args.get("due"),
+            notes=notes or None,
+            due=due or None,
         )
-        return f"Task created: {title} (ID: {task_id})" if task_id else "Failed to create task"
+        text = f"Task created: {title} (ID: {task_id})" if task_id else "Failed to create task"
+        return {"content": [{"type": "text", "text": text}]}
 
-    async def _tasks_complete(self, creds: dict, args: dict) -> str:
+    async def _tasks_complete(self, user_id: int, task_id: str) -> dict:
         """Complete task."""
-        task_id = args.get("task_id", "")
-        if not task_id:
-            return "Error: Need task_id"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         success = await self._gws.tasks_complete(creds, task_id)
-        return "Task completed" if success else "Failed to complete task"
+        text = "Task completed" if success else "Failed to complete task"
+        return {"content": [{"type": "text", "text": text}]}
 
-    async def _tasks_delete(self, creds: dict, args: dict) -> str:
+    async def _tasks_delete(self, user_id: int, task_id: str) -> dict:
         """Delete task."""
-        task_id = args.get("task_id", "")
-        if not task_id:
-            return "Error: Need task_id"
+        creds = await get_user_gws_credentials(user_id)
+        if not creds:
+            return {"error": "GWS_CREDENTIALS_NOT_AVAILABLE"}
 
         success = await self._gws.tasks_delete(creds, task_id)
-        return "Task deleted" if success else "Failed to delete task"
+        text = "Task deleted" if success else "Failed to delete task"
+        return {"content": [{"type": "text", "text": text}]}
