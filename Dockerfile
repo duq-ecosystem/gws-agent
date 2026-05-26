@@ -16,11 +16,11 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 # === DEPS LAYER ===
+ARG GITHUB_TOKEN
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=secret,id=github_token \
-    if [ -f /run/secrets/github_token ]; then \
-      git config --global url."https://$(cat /run/secrets/github_token)@github.com/".insteadOf "https://github.com/"; \
+    if [ -n "$GITHUB_TOKEN" ]; then \
+      git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
     fi && \
     uv sync --frozen --no-install-project --no-dev
 
