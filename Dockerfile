@@ -16,7 +16,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 # === DEPS LAYER ===
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=secret,id=github_token \
     if [ -f /run/secrets/github_token ]; then \
