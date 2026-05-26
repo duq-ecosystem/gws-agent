@@ -39,4 +39,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import gws_agent; print('OK')" || exit 1
 
-CMD ["python", "-m", "gws_agent"]
+CMD ["python", "-m", "gws_agent.main"]
