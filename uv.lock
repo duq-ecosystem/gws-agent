@@ -300,8 +300,9 @@ wheels = [
 [[package]]
 name = "duq-agent-core"
 version = "0.4.0"
-source = { git = "https://github.com/duq-ecosystem/duq-agent-core.git?branch=master#4e86d85d9d017a6b2fdb568f4cd324faed59df7e" }
+source = { git = "https://github.com/duq-ecosystem/duq-agent-core.git?branch=master#e7194be9ab604152d42af754134f929af95b22fd" }
 dependencies = [
+    { name = "duq-tracing" },
     { name = "httpx" },
     { name = "loguru" },
     { name = "pydantic" },
@@ -309,6 +310,17 @@ dependencies = [
     { name = "pyyaml" },
     { name = "redis" },
     { name = "tenacity" },
+]
+
+[[package]]
+name = "duq-tracing"
+version = "0.1.0"
+source = { git = "https://github.com/duq-ecosystem/duq-tracing.git?subdirectory=python&branch=master#d7bbc9e4dd72ce7df17c9b400af70fa1618b9031" }
+dependencies = [
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "redis" },
+    { name = "starlette" },
 ]
 
 [[package]]
