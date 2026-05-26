@@ -32,6 +32,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # === RUNTIME ===
 FROM python:3.12-slim
 WORKDIR /app
+
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/.venv /app/.venv
 COPY src/ ./src/
 ENV PATH="/app/.venv/bin:$PATH"
