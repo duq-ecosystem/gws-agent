@@ -3,7 +3,7 @@ name = "gws-agent"
 version = "1.0.0"
 description = "Google Workspace Agent - Gmail, Calendar, Drive, Tasks"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "duq-agent-core",
     "loguru>=0.7.0",
@@ -39,14 +39,13 @@ packages = ["src/gws_agent"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 
 [tool.uv.sources]
-# Path-dep for local development; CI/prod uses git version
-duq-agent-core = { path = "../../libs/duq-agent-core", editable = true }
+duq-agent-core = { git = "https://github.com/duq-ecosystem/duq-agent-core.git", branch = "master" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
