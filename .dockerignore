@@ -28,8 +28,9 @@ htmlcov/
 # Dev/Test
 tests/
 docs/
-*.md
 Makefile
+CHANGELOG.md
+CONTRIBUTING.md
 
 # Node
 node_modules/
