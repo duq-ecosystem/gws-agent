@@ -1,13 +1,15 @@
 """Tasks service for Google Workspace.
 
-Single Responsibility: Google Tasks operations via gws CLI.
+Single Responsibility: Google Tasks operations via direct Google API HTTP calls.
 """
-import json
 from typing import Any
 
 from loguru import logger
 
 from gws_agent.services.base import GWSBaseService
+
+
+TASKS_API_BASE = "https://tasks.googleapis.com/tasks/v1"
 
 
 class TasksService(GWSBaseService):
@@ -27,16 +29,18 @@ class TasksService(GWSBaseService):
 
     async def _get_default_tasklist_id(self, credentials: dict | None) -> str | None:
         """Get the default task list ID."""
-        lists_result = await self._run_gws(
-            credentials,
-            "tasks", "tasklists", "list",
-            "--params", json.dumps({"maxResults": 1})
-        )
-
-        if "error" in lists_result:
+        if not credentials:
             return None
 
-        task_lists = lists_result.get("items", [])
+        url = f"{TASKS_API_BASE}/users/@me/lists"
+        params = {"maxResults": 1}
+
+        result = await self._google_api_request(credentials, "GET", url, params=params)
+
+        if "error" in result:
+            return None
+
+        task_lists = result.get("items", [])
         if not task_lists:
             return None
 
@@ -56,11 +60,10 @@ class TasksService(GWSBaseService):
         if not task_list_id:
             return []
 
-        result = await self._run_gws(
-            credentials,
-            "tasks", "tasks", "list",
-            "--params", json.dumps({"tasklist": task_list_id, "maxResults": max_results})
-        )
+        url = f"{TASKS_API_BASE}/lists/{task_list_id}/tasks"
+        params = {"maxResults": max_results}
+
+        result = await self._google_api_request(credentials, "GET", url, params=params)
 
         if "error" in result:
             return []
@@ -89,18 +92,14 @@ class TasksService(GWSBaseService):
         if not task_list_id:
             return None
 
+        url = f"{TASKS_API_BASE}/lists/{task_list_id}/tasks"
         task_data: dict[str, Any] = {"title": title}
         if notes:
             task_data["notes"] = notes
         if due:
             task_data["due"] = due
 
-        result = await self._run_gws(
-            credentials,
-            "tasks", "tasks", "insert",
-            "--params", json.dumps({"tasklist": task_list_id}),
-            "--json", json.dumps(task_data)
-        )
+        result = await self._google_api_request(credentials, "POST", url, json_body=task_data)
 
         if "error" in result:
             return None
@@ -145,12 +144,8 @@ class TasksService(GWSBaseService):
         if not task_data:
             return False
 
-        result = await self._run_gws(
-            credentials,
-            "tasks", "tasks", "patch",
-            "--params", json.dumps({"tasklist": task_list_id, "task": task_id}),
-            "--json", json.dumps(task_data)
-        )
+        url = f"{TASKS_API_BASE}/lists/{task_list_id}/tasks/{task_id}"
+        result = await self._google_api_request(credentials, "PATCH", url, json_body=task_data)
 
         return "error" not in result
 
@@ -168,11 +163,8 @@ class TasksService(GWSBaseService):
         if not task_list_id:
             return False
 
-        result = await self._run_gws(
-            credentials,
-            "tasks", "tasks", "delete",
-            "--params", json.dumps({"tasklist": task_list_id, "task": task_id})
-        )
+        url = f"{TASKS_API_BASE}/lists/{task_list_id}/tasks/{task_id}"
+        result = await self._google_api_request(credentials, "DELETE", url)
 
         return "error" not in result
 

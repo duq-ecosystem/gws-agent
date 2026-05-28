@@ -1,21 +1,19 @@
 """Base class for Google Workspace services.
 
-Provides shared functionality for credential management and gws CLI execution.
-Single Responsibility: Credential handling and CLI execution.
+Provides shared functionality for credential management and Google API HTTP calls.
+Uses direct HTTP via httpx instead of CLI wrapper.
 """
-import asyncio
-import json
 import os
-import tempfile
 from typing import Any
 
+import httpx
 from loguru import logger
 
 
 class GWSError(Exception):
-    """Error from Google Workspace CLI.
+    """Error from Google Workspace API.
 
-    Raised when gws CLI returns an error (missing binary, auth failure, API error).
+    Raised when Google API returns an error (auth failure, API error, etc.).
     This prevents silent failures from being masked as "no data".
     """
 
@@ -25,124 +23,131 @@ class GWSError(Exception):
 class GWSBaseService:
     """Base class with shared GWS functionality.
 
-    Handles:
-    - Credential file creation (secure temp files)
-    - gws CLI command execution
-    - Error handling and cleanup
+    Uses direct HTTP calls to Google APIs instead of CLI wrapper.
+    Handles OAuth token refresh automatically.
     """
 
-    def _get_credentials_file(self, credentials: dict | None) -> str | None:
-        """Create temp credentials file in Google authorized_user format.
+    GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+    async def _refresh_access_token(self, credentials: dict) -> str | None:
+        """Refresh OAuth access token using refresh_token.
 
         Args:
-            credentials: Dict with access_token, refresh_token, token_type
+            credentials: Dict with refresh_token
 
         Returns:
-            Path to temp credentials file, or None if no credentials
+            New access_token or None if refresh failed
         """
-        if not credentials:
-            logger.warning("No credentials provided")
-            return None
-
-        if not credentials.get("refresh_token"):
+        refresh_token = credentials.get("refresh_token")
+        if not refresh_token:
             logger.warning("No refresh_token in credentials")
             return None
 
-        # Check required env vars
         client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
         client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
         if not client_id or not client_secret:
             logger.error("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set")
             return None
 
-        # Google authorized_user format
-        gws_creds = {
-            "type": "authorized_user",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": credentials.get("refresh_token"),
-        }
-
-        # Write to temp file with secure permissions
-        fd, path = tempfile.mkstemp(suffix=".json", prefix="gws_creds_")
-        try:
-            # Set secure permissions BEFORE writing (owner read/write only)
-            os.chmod(path, 0o600)
-            with os.fdopen(fd, 'w') as f:
-                json.dump(gws_creds, f)
-            logger.debug(f"Created secure credentials file: {path}")
-            return path
-        except Exception as e:
-            logger.error(f"Failed to write credentials file: {e}")
+        async with httpx.AsyncClient() as client:
             try:
-                os.unlink(path)
-            except Exception as e:  # noqa: Silenced
-                pass
-            return None
+                response = await client.post(
+                    self.GOOGLE_TOKEN_URL,
+                    data={
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "refresh_token": refresh_token,
+                        "grant_type": "refresh_token",
+                    },
+                    timeout=30.0,
+                )
 
-    async def _run_gws(self, credentials: dict | None, *args: str, timeout: float = 30.0) -> dict[str, Any]:
-        """Run gws CLI command and return JSON result.
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.debug("Successfully refreshed access token")
+                    return data.get("access_token")
+                else:
+                    logger.error(f"Token refresh failed: {response.status_code} {response.text[:200]}")
+                    return None
+            except Exception as e:
+                logger.error(f"Token refresh error: {e}")
+                return None
+
+    async def _google_api_request(
+        self,
+        credentials: dict,
+        method: str,
+        url: str,
+        params: dict | None = None,
+        json_body: dict | None = None,
+        timeout: float = 30.0,
+    ) -> dict[str, Any]:
+        """Make authenticated request to Google API.
 
         Args:
-            credentials: User credentials (access_token, refresh_token, token_type)
-            *args: Command arguments (e.g., "gmail", "users", "messages", "list")
-            timeout: Command timeout in seconds
+            credentials: User credentials with access_token/refresh_token
+            method: HTTP method (GET, POST, PUT, DELETE, PATCH)
+            url: Full Google API URL
+            params: Query parameters
+            json_body: JSON body for POST/PUT/PATCH
+            timeout: Request timeout
 
         Returns:
             Parsed JSON response or error dict
         """
-        cmd = ["gws", *args]
-        logger.debug(f"Running gws command: {' '.join(cmd)}")
+        # Get or refresh access token
+        access_token = credentials.get("access_token")
+        if not access_token:
+            access_token = await self._refresh_access_token(credentials)
+            if not access_token:
+                return {"error": "Google аккаунт не подключён. Скажи 'подключи гугл' для авторизации."}
 
-        # Get credentials file
-        creds_file = self._get_credentials_file(credentials)
-        if not creds_file:
-            logger.warning("No GWS credentials available for user")
-            return {"error": "Google аккаунт не подключён. Скажи 'подключи гугл' для авторизации."}
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
 
-        # Use GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE env var
-        env = os.environ.copy()
-        env["GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE"] = creds_file
-        env["GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"] = "file"  # Disable keyring, use file
-        logger.debug(f"Using per-user credentials file: {creds_file}")
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    params=params,
+                    json=json_body,
+                    timeout=timeout,
+                )
 
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=env,
-            )
+                # Handle token expiration - retry with refreshed token
+                if response.status_code == 401:
+                    logger.info("Access token expired, refreshing...")
+                    access_token = await self._refresh_access_token(credentials)
+                    if not access_token:
+                        return {"error": "Не удалось обновить Google токен. Переподключи аккаунт."}
 
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=timeout
-            )
+                    headers["Authorization"] = f"Bearer {access_token}"
+                    response = await client.request(
+                        method=method,
+                        url=url,
+                        headers=headers,
+                        params=params,
+                        json=json_body,
+                        timeout=timeout,
+                    )
 
-            if process.returncode == 0:
-                try:
-                    return json.loads(stdout.decode())
-                except json.JSONDecodeError:
-                    # Some commands return plain text
-                    return {"output": stdout.decode().strip()}
-            else:
-                error_msg = stderr.decode() or stdout.decode()
-                logger.error(f"gws command failed: {error_msg[:200]}")
-                return {"error": error_msg}
+                if response.status_code in (200, 201, 204):
+                    if response.content:
+                        return response.json()
+                    return {"success": True}
+                else:
+                    error_msg = response.text[:500]
+                    logger.error(f"Google API error: {response.status_code} {error_msg}")
+                    return {"error": f"Google API error: {response.status_code}"}
 
-        except asyncio.TimeoutError:
-            logger.error(f"gws command timeout: {' '.join(cmd)}")
-            return {"error": "Command timeout"}
-        except FileNotFoundError:
-            logger.error("gws CLI not found in PATH")
-            return {"error": "gws CLI not found"}
-        except Exception as e:
-            logger.error(f"gws command failed: {str(e)}")
-            return {"error": str(e)}
-        finally:
-            # Clean up temp credentials file
-            if creds_file and os.path.exists(creds_file):
-                try:
-                    os.unlink(creds_file)
-                    logger.debug(f"Cleaned up credentials file: {creds_file}")
-                except Exception as e:
-                    logger.warning(f"Failed to cleanup credentials file: {e}")
+            except httpx.TimeoutException:
+                logger.error(f"Google API timeout: {url}")
+                return {"error": "Таймаут запроса к Google"}
+            except Exception as e:
+                logger.error(f"Google API request failed: {e}")
+                return {"error": str(e)}

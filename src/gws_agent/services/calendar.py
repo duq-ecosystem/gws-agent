@@ -1,8 +1,7 @@
 """Calendar service for Google Workspace.
 
-Single Responsibility: Calendar event operations via gws CLI.
+Single Responsibility: Calendar event operations via direct Google API HTTP calls.
 """
-import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -11,8 +10,8 @@ from loguru import logger
 from gws_agent.services.base import GWSBaseService, GWSError
 
 
-# Display limits
-MAX_DESCRIPTION_LENGTH = 200  # Truncate long descriptions in calendar events
+CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
+MAX_DESCRIPTION_LENGTH = 200
 
 
 class CalendarService(GWSBaseService):
@@ -39,21 +38,19 @@ class CalendarService(GWSBaseService):
         Returns:
             List of calendar events
         """
-        # Use events list API with timeMin to get upcoming events
+        if not credentials:
+            raise GWSError("No credentials provided")
+
+        url = f"{CALENDAR_API_BASE}/calendars/primary/events"
         now = datetime.now(timezone.utc).isoformat()
         params = {
-            "calendarId": "primary",
             "maxResults": max_results,
             "timeMin": now,
             "singleEvents": True,
             "orderBy": "startTime",
         }
 
-        result = await self._run_gws(
-            credentials,
-            "calendar", "events", "list",
-            "--params", json.dumps(params)
-        )
+        result = await self._google_api_request(credentials, "GET", url, params=params)
 
         if "error" in result:
             error_msg = result["error"]
@@ -102,6 +99,10 @@ class CalendarService(GWSBaseService):
         Returns:
             Event ID if created, None otherwise
         """
+        if not credentials:
+            return None
+
+        url = f"{CALENDAR_API_BASE}/calendars/primary/events"
         event_data = {
             "summary": summary,
             "start": {"dateTime": start_time},
@@ -112,12 +113,7 @@ class CalendarService(GWSBaseService):
         if location:
             event_data["location"] = location
 
-        result = await self._run_gws(
-            credentials,
-            "calendar", "events", "insert",
-            "--params", json.dumps({"calendarId": "primary"}),
-            "--json", json.dumps(event_data)
-        )
+        result = await self._google_api_request(credentials, "POST", url, json_body=event_data)
 
         if "error" in result:
             return None
@@ -147,6 +143,9 @@ class CalendarService(GWSBaseService):
         Returns:
             True if updated
         """
+        if not credentials:
+            return False
+
         event_data: dict[str, Any] = {}
         if summary is not None:
             event_data["summary"] = summary
@@ -162,12 +161,9 @@ class CalendarService(GWSBaseService):
         if not event_data:
             return False
 
-        result = await self._run_gws(
-            credentials,
-            "calendar", "events", "patch",
-            "--params", json.dumps({"calendarId": "primary", "eventId": event_id}),
-            "--json", json.dumps(event_data)
-        )
+        url = f"{CALENDAR_API_BASE}/calendars/primary/events/{event_id}"
+        result = await self._google_api_request(credentials, "PATCH", url, json_body=event_data)
+
         return "error" not in result
 
     async def delete_event(self, credentials: dict | None, event_id: str) -> bool:
@@ -180,9 +176,10 @@ class CalendarService(GWSBaseService):
         Returns:
             True if deleted
         """
-        result = await self._run_gws(
-            credentials,
-            "calendar", "events", "delete",
-            "--params", json.dumps({"calendarId": "primary", "eventId": event_id})
-        )
+        if not credentials:
+            return False
+
+        url = f"{CALENDAR_API_BASE}/calendars/primary/events/{event_id}"
+        result = await self._google_api_request(credentials, "DELETE", url)
+
         return "error" not in result

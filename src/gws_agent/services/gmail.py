@@ -1,13 +1,17 @@
 """Gmail service for Google Workspace.
 
-Single Responsibility: Email operations via gws CLI.
+Single Responsibility: Email operations via direct Google API HTTP calls.
 """
-import json
+import base64
+from email.mime.text import MIMEText
 from typing import Any
 
 from loguru import logger
 
 from gws_agent.services.base import GWSBaseService, GWSError
+
+
+GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1"
 
 
 class GmailService(GWSBaseService):
@@ -37,15 +41,15 @@ class GmailService(GWSBaseService):
         Returns:
             List of message objects with id, threadId, snippet, etc.
         """
-        params = {"userId": "me", "maxResults": max_results}
+        if not credentials:
+            raise GWSError("No credentials provided")
+
+        url = f"{GMAIL_API_BASE}/users/me/messages"
+        params = {"maxResults": max_results}
         if query:
             params["q"] = query
 
-        result = await self._run_gws(
-            credentials,
-            "gmail", "users", "messages", "list",
-            "--params", json.dumps(params)
-        )
+        result = await self._google_api_request(credentials, "GET", url, params=params)
 
         if "error" in result:
             error_msg = result["error"]
@@ -73,15 +77,17 @@ class GmailService(GWSBaseService):
         Returns:
             Message details with headers, snippet, etc.
         """
-        result = await self._run_gws(
-            credentials,
-            "gmail", "users", "messages", "get",
-            "--params", json.dumps({"userId": "me", "id": message_id, "format": "metadata"})
-        )
+        if not credentials:
+            return None
+
+        url = f"{GMAIL_API_BASE}/users/me/messages/{message_id}"
+        params = {"format": "metadata"}
+
+        result = await self._google_api_request(credentials, "GET", url, params=params)
 
         if "error" in result:
             logger.warning(f"Gmail get_message failed for {message_id}: {result['error']}")
-            return None  # Single message fetch failure is acceptable, don't break the loop
+            return None
 
         # Extract useful info from headers
         headers = {h["name"]: h["value"] for h in result.get("payload", {}).get("headers", [])}
@@ -121,13 +127,22 @@ class GmailService(GWSBaseService):
         Returns:
             True if sent successfully
         """
-        result = await self._run_gws(
-            credentials,
-            "gmail", "+send",
-            "--to", to,
-            "--subject", subject,
-            "--body", body
+        if not credentials:
+            return False
+
+        # Build MIME message
+        message = MIMEText(body)
+        message["to"] = to
+        message["subject"] = subject
+
+        # Encode as base64url
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+
+        url = f"{GMAIL_API_BASE}/users/me/messages/send"
+        result = await self._google_api_request(
+            credentials, "POST", url, json_body={"raw": raw}
         )
+
         return "error" not in result
 
     async def mark_read(self, credentials: dict | None, message_id: str) -> bool:
@@ -140,10 +155,12 @@ class GmailService(GWSBaseService):
         Returns:
             True if successful
         """
-        result = await self._run_gws(
-            credentials,
-            "gmail", "users", "messages", "modify",
-            "--params", json.dumps({"userId": "me", "id": message_id}),
-            "--json", json.dumps({"removeLabelIds": ["UNREAD"]})
+        if not credentials:
+            return False
+
+        url = f"{GMAIL_API_BASE}/users/me/messages/{message_id}/modify"
+        result = await self._google_api_request(
+            credentials, "POST", url, json_body={"removeLabelIds": ["UNREAD"]}
         )
+
         return "error" not in result

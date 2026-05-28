@@ -1,13 +1,15 @@
 """Drive service for Google Workspace.
 
-Single Responsibility: Drive file operations via gws CLI.
+Single Responsibility: Drive file operations via direct Google API HTTP calls.
 """
-import json
 from typing import Any
 
 from loguru import logger
 
 from gws_agent.services.base import GWSBaseService
+
+
+DRIVE_API_BASE = "https://www.googleapis.com/drive/v3"
 
 
 class DriveService(GWSBaseService):
@@ -35,15 +37,18 @@ class DriveService(GWSBaseService):
         Returns:
             List of files with id, name, mimeType, etc.
         """
-        params = {"pageSize": max_results}
+        if not credentials:
+            return []
+
+        url = f"{DRIVE_API_BASE}/files"
+        params = {
+            "pageSize": max_results,
+            "fields": "files(id,name,mimeType,modifiedTime,size)",
+        }
         if query:
             params["q"] = query
 
-        result = await self._run_gws(
-            credentials,
-            "drive", "files", "list",
-            "--params", json.dumps(params)
-        )
+        result = await self._google_api_request(credentials, "GET", url, params=params)
 
         if "error" in result:
             return []
