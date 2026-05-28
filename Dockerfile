@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY --from=duq-agent-core . ./libs/duq-agent-core
 COPY --from=duq-tracing . ./libs/duq-tracing
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --no-deps ./libs/duq-tracing ./libs/duq-agent-core
+    uv pip install ./libs/duq-tracing ./libs/duq-agent-core
 
 # === RUNTIME ===
 FROM python:3.12-slim
