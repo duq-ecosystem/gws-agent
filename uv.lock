@@ -300,7 +300,7 @@ wheels = [
 [[package]]
 name = "duq-agent-core"
 version = "0.4.0"
-source = { git = "https://github.com/duq-ecosystem/duq-agent-core.git?branch=master#e7194be9ab604152d42af754134f929af95b22fd" }
+source = { git = "https://github.com/duq-ecosystem/duq-agent-core.git?branch=master#62a77a22799fbc771d7a5d083e30a687d19b48a3" }
 dependencies = [
     { name = "duq-tracing" },
     { name = "httpx" },
