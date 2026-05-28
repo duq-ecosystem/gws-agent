@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1.9
+# GWS Agent - Google Workspace (Gmail, Calendar, Drive, Tasks)
 FROM python:3.12-slim AS builder
-
-# Git required for git+ dependencies in uv.lock
-RUN apt-get update && apt-get install -y --no-install-recommends git \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /uvx /bin/
 
@@ -15,16 +12,18 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# === DEPS LAYER ===
-ARG GITHUB_TOKEN
+# === LAYER 1: EXTERNAL DEPS (stable, heavy, cached) ===
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -n "$GITHUB_TOKEN" ]; then \
-      git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
-    fi && \
     uv sync --frozen --no-install-project --no-dev
 
-# === CODE LAYER ===
+# === LAYER 2: INTERNAL LIBS (thin, fast rebuild) ===
+COPY --from=duq-agent-core . ./libs/duq-agent-core
+COPY --from=duq-tracing . ./libs/duq-tracing
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --no-deps ./libs/duq-tracing ./libs/duq-agent-core
+
+# === LAYER 3: PROJECT CODE ===
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
@@ -33,12 +32,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 FROM python:3.12-slim
 WORKDIR /app
 
-# Install curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/.venv /app/.venv
 COPY src/ ./src/
-ENV PATH="/app/.venv/bin:$PATH"
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import gws_agent; print('OK')" || exit 1
