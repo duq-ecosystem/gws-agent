@@ -17,16 +17,16 @@ COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
-# === LAYER 2: INTERNAL LIBS (thin, fast rebuild) ===
+# === LAYER 2: PROJECT CODE ===
+COPY src/ ./src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
+
+# === LAYER 3: INTERNAL LIBS (last to avoid removal by sync) ===
 COPY --from=duq-agent-core . ./libs/duq-agent-core
 COPY --from=duq-tracing . ./libs/duq-tracing
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --no-deps ./libs/duq-tracing ./libs/duq-agent-core
-
-# === LAYER 3: PROJECT CODE ===
-COPY src/ ./src/
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --no-deps -e .
 
 # === RUNTIME ===
 FROM python:3.12-slim
