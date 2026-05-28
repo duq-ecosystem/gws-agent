@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # === LAYER 3: PROJECT CODE ===
 COPY src/ ./src/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv pip install --no-deps -e .
 
 # === RUNTIME ===
 FROM python:3.12-slim
